@@ -6,7 +6,12 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)  # Enable Cross-Origin Request Sharing (CORS)
 
-openai.api_key = os.getenv("sk-proj-IcJoaXV0H4jxCBbDCtGqTZKnq-nrwjLktr1Q6nsb_Iy_rZxf-GshU84cDhF6YJeXQBXCPz2FcJT3BlbkFJ5adlhIXmjyHGjvxacB5lnX7jKvebKYBNAtdIXkWbvXKGTfkBREuzAin08gHokpwLN0aYZGF1")
+# Ensure the OpenAI API key is retrieved from the environment variables
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Check if the API key is missing and raise an error if it is
+if openai.api_key is None:
+    raise ValueError("API key is missing. Set the OPENAI_API_KEY environment variable.")
 
 # Now you can use OpenAI API as usual
 response = openai.Completion.create(
@@ -14,7 +19,6 @@ response = openai.Completion.create(
     prompt="Hello, world!",
     max_tokens=10
 )
-
 
 openai.proxy = None  # Disable proxies explicitly (if necessary)
 
