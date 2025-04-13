@@ -26,6 +26,7 @@ def ask():
     try:
         data = request.get_json()
         message = data.get("message")
+        thread_id = "thread_I1ypoK0YBZcwD4ZoXczpRaU1"  # Use your thread ID here
 
         if not message:
             return jsonify({"error": "No message provided"}), 400
@@ -34,11 +35,9 @@ def ask():
         response = openai.ChatCompletion.create(
             model="gpt-4o-mini",  # Use your specific model
             messages=[{"role": "user", "content": message}],
-            max_tokens=150
+            max_tokens=150,
+            thread=thread_id  # Pass the thread ID to continue the conversation
         )
-
-        # Log the entire response for debugging
-        print("Full API Response:", response)
 
         # Get the response from the API
         answer = response['choices'][0]['message']['content'].strip()
