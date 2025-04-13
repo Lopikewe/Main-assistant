@@ -6,24 +6,10 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)  # Enable Cross-Origin Request Sharing (CORS)
 
-# Add your OpenAI API key here
-openai.api_key = "sk-proj-IcJoaXV0H4jxCBbDCtGqTZKnq-nrwjLktr1Q6nsb_Iy_rZxf-GshU84cDhF6YJeXQBXCPz2FcJT3BlbkFJ5adlhIXmjyHGjvxacB5lnX7jKvebKYBNAtdIXkWbvXKGTfkBREuzAin08gHokpwLN0aYZGF1"
+# Add your OpenAI API key securely (through environment variable)
+openai.api_key = os.getenv("sk-proj-IcJoaXV0H4jxCBbDCtGqTZKnq-nrwjLktr1Q6nsb_Iy_rZxf-GshU84cDhF6YJeXQBXCPz2FcJT3BlbkFJ5adlhIXmjyHGjvxacB5lnX7jKvebKYBNAtdIXkWbvXKGTfkBREuzAin08gHokpwLN0aYZGF1")  # You can set your API key as an environment variable for better security
 
-openai.proxy = None  # Disable proxies explicitly
-
-try:
-    response = openai.Completion.create(
-        model="gpt-3.5-turbo",
-        prompt="Hello, world!",
-        max_tokens=10
-    )
-    print(response.choices[0].text)
-except Exception as e:
-    print(f"Error: {e}")
-
-
-
-
+openai.proxy = None  # Disable proxies explicitly (if necessary)
 
 @app.route("/")
 def home():
@@ -38,9 +24,9 @@ def ask():
         if not message:
             return jsonify({"error": "No message provided"}), 400
 
-        # Call OpenAI API for response using the new chat-based completion method
-        response = openai.chat.Completion.create(
-            model="gpt-3.5-turbo",  # Use the new GPT model
+        # Call OpenAI API for response using the chat-based completion method
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # Using the GPT-3.5 model (or newer if applicable)
             messages=[{"role": "user", "content": message}],
             max_tokens=150
         )
