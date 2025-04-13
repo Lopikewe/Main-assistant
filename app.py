@@ -9,6 +9,22 @@ CORS(app)  # Enable Cross-Origin Request Sharing (CORS)
 # Add your OpenAI API key here
 openai.api_key = "sk-proj-IcJoaXV0H4jxCBbDCtGqTZKnq-nrwjLktr1Q6nsb_Iy_rZxf-GshU84cDhF6YJeXQBXCPz2FcJT3BlbkFJ5adlhIXmjyHGjvxacB5lnX7jKvebKYBNAtdIXkWbvXKGTfkBREuzAin08gHokpwLN0aYZGF1"
 
+openai.proxy = None  # Disable proxies explicitly
+
+try:
+    response = openai.Completion.create(
+        model="gpt-3.5-turbo",
+        prompt="Hello, world!",
+        max_tokens=10
+    )
+    print(response.choices[0].text)
+except Exception as e:
+    print(f"Error: {e}")
+
+
+
+
+
 @app.route("/")
 def home():
     return "Manufacturing Assistant API is live!"
