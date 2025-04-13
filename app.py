@@ -131,8 +131,8 @@ def stream_ask():
                     last_message = messages.data[0]
                     chunks = last_message.content
                     for chunk in chunks:
-                        if chunk.get("type") == "text":
-                            text = chunk["text"]["value"]
+                        if chunk.type == "text":
+                            text = chunk.text.value
                             yield f"data: {json.dumps({'text': text})}\n\n"
 
         return Response(generate(), content_type='text/event-stream')
