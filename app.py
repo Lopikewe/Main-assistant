@@ -60,3 +60,6 @@ def ask():
 def index():
     return "<h1>Assistant is running</h1>"
 
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+
