@@ -17,9 +17,6 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 if openai.api_key is None:
     raise ValueError("API key is missing. Set the OPENAI_API_KEY environment variable.")
 
-# Assistant ID (use your actual ID here)
-ASSISTANT_ID = "asst_zaP9DAqsurHvabQuvRKh7VtX"
-
 @app.route("/")
 def home():
     return "Manufacturing Assistant API is live!"
@@ -29,16 +26,20 @@ def ask():
     try:
         data = request.get_json()
         message = data.get("message")
+        assistant_id = data.get("assistant_id")  # Get the assistant ID from the request data
 
         if not message:
             return jsonify({"error": "No message provided"}), 400
 
-        # Call OpenAI API for response using the gpt-4o-mini model and passing the assistant ID
+        if not assistant_id:
+            return jsonify({"error": "Assistant ID is missing"}), 400  # Handle missing assistant ID
+
+        # Call OpenAI API for response using the chat-based completion method
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",  # Change the model to gpt-4o-mini
+            model="gpt-4o-mini",  # Use your specific model
             messages=[{"role": "user", "content": message}],
             max_tokens=150,
-            user=ASSISTANT_ID  # Add the assistant ID here to make sure the right assistant is used
+            user=assistant_id  # Pass the assistant ID as user context
         )
 
         # Get the response from the API
