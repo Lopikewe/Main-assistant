@@ -1,4 +1,4 @@
 Flask==2.2.2
-openai==1.66.3
+openai==0.28.0
 flask-cors==5.0.1
 werkzeug==2.2.3
