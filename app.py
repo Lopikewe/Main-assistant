@@ -5,19 +5,19 @@ from flask import Flask, request, jsonify
 import openai
 from flask_cors import CORS
 
-# Set up logging
+# Logging
 logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__)
 CORS(app)
 
-# Load API key from environment variable
 openai.api_key = os.getenv("OPENAI_API_KEY")
 if openai.api_key is None:
     raise ValueError("API key is missing. Set the OPENAI_API_KEY environment variable.")
 
-# Use your specific Assistant ID
+# Set your assistant ID and persistent thread ID
 ASSISTANT_ID = "asst_zaP9DAqsurHvabQuvRKh7VtX"
+THREAD_ID = "thread_abcd1234xyz"  # Replace with your actual thread ID
 
 @app.route("/")
 def home():
@@ -32,26 +32,23 @@ def ask():
         if not message:
             return jsonify({"error": "No message provided"}), 400
 
-        # Step 1: Create a new thread
-        thread = openai.beta.threads.create()
-
-        # Step 2: Add the user message to the thread
+        # Step 1: Add the user's message to the existing thread
         openai.beta.threads.messages.create(
-            thread_id=thread.id,
+            thread_id=THREAD_ID,
             role="user",
             content=message
         )
 
-        # Step 3: Run the assistant on that thread
+        # Step 2: Run the assistant
         run = openai.beta.threads.runs.create(
-            thread_id=thread.id,
+            thread_id=THREAD_ID,
             assistant_id=ASSISTANT_ID
         )
 
-        # Step 4: Wait for the run to complete
+        # Step 3: Wait for run to complete
         while True:
             run_status = openai.beta.threads.runs.retrieve(
-                thread_id=thread.id,
+                thread_id=THREAD_ID,
                 run_id=run.id
             )
             if run_status.status == "completed":
@@ -60,8 +57,8 @@ def ask():
                 return jsonify({"error": "Assistant run failed"}), 500
             time.sleep(1)
 
-        # Step 5: Get the assistant's response
-        messages = openai.beta.threads.messages.list(thread_id=thread.id)
+        # Step 4: Get assistant response
+        messages = openai.beta.threads.messages.list(thread_id=THREAD_ID)
         assistant_response = messages.data[0].content[0].text.value
 
         return jsonify({"response": assistant_response})
@@ -71,4 +68,5 @@ def ask():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    port = int(os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
