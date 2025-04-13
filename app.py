@@ -28,15 +28,4 @@ def home():
 @app.route("/ask", methods=["POST"])
 def ask():
     try:
-        data = request.get_json()
-        message = data.get("message")
-
-        if not message:
-            return jsonify({"error": "No message provided"}), 400
-
-        # Step 1: Add message to thread
-        openai.beta.threads.messages.create(
-            thread_id=THREAD_ID,
-            role="user",
-            content=message
-        )
+        data
