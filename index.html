@@ -109,6 +109,15 @@
     }
   }
 
+  function speak(text) {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "en-US";
+      utterance.rate = 1;
+      speechSynthesis.speak(utterance);
+    }
+  }
+
   async function sendMessage() {
     const input = document.getElementById("userInput");
     const sendButton = document.getElementById("sendButton");
@@ -141,6 +150,7 @@
       const decoder = new TextDecoder();
       let buffer = "";
       const span = document.getElementById(id);
+      let spokenBuffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -158,6 +168,7 @@
               const parsed = JSON.parse(jsonString);
               if (parsed.text) {
                 span.textContent += parsed.text;
+                spokenBuffer += parsed.text;
                 scrollToBottom();
               } else if (parsed.image_url) {
                 span.innerHTML += `<br><img src="${parsed.image_url}" alt="Generated Image" style="max-width:100%; border:1px solid #ccc; margin-top:10px;" />`;
@@ -170,6 +181,12 @@
 
         buffer = parts[parts.length - 1];
       }
+
+      // Speak full response after streaming
+      if (spokenBuffer.length > 0) {
+        speak(spokenBuffer);
+      }
+
     } catch (error) {
       messagesDiv.innerHTML += `<div class="message assistant">Error: ${error.message}</div>`;
     } finally {
@@ -187,8 +204,3 @@
 
 </body>
 </html>
-
-
-<!-- updated -->
-
-
