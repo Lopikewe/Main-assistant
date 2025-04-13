@@ -1,52 +1,54 @@
 import os
 import logging
-import openai
 from flask import Flask, request, jsonify
+import openai
 from flask_cors import CORS
 
-# Logging setup
+# Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
-# Flask app setup
 app = Flask(__name__)
 CORS(app)
 
-# Load OpenAI API key
+# Ensure the OpenAI API key is retrieved from the environment variables
 openai.api_key = os.getenv("OPENAI_API_KEY")
-if not openai.api_key:
-    raise ValueError("Missing OPENAI_API_KEY environment variable")
 
-# Ensure no proxies are set
-openai.proxy = None  # Clear any proxy settings if they're mistakenly being used
+# Check if the API key is missing and raise an error if it is
+if openai.api_key is None:
+    raise ValueError("API key is missing. Set the OPENAI_API_KEY environment variable.")
 
 @app.route("/")
 def home():
-    return "📚 Manufacturing Assistant API is live!"
+    return "Manufacturing Assistant API is live!"
 
 @app.route("/ask", methods=["POST"])
 def ask():
     try:
         data = request.get_json()
         message = data.get("message")
+        thread_id = "thread_I1ypoK0YBZcwD4ZoXczpRaU1"  # Use your thread ID here
 
         if not message:
             return jsonify({"error": "No message provided"}), 400
 
-        # Send message to OpenAI API
-        response = openai.ChatCompletion.create(
+        # Call OpenAI API for response using the new API method
+        response = openai.completions.create(  # Use completions.create in the new version
+            model="gpt-4",  # Automatically determined model, or specify like "gpt-4"
             messages=[{"role": "user", "content": message}],
-            thread="thread_I1ypoK0YBZcwD4ZoXczpRaU1"  # Pass the thread ID
+            max_tokens=150,
+            user="user_unique_identifier",  # Optional: specify a unique user identifier
+            thread=thread_id  # Continue conversation with the same thread
         )
 
-        # Get the assistant's response
-        assistant_response = response['choices'][0]['message']['content'].strip()
-
-        return jsonify({"response": assistant_response})
+        # Get the response from the API
+        answer = response['choices'][0]['message']['content'].strip()
+        return jsonify({"response": answer})
 
     except Exception as e:
-        logging.error(f"Error during Assistant API call: {str(e)}")
+        logging.error(f"Error during OpenAI API call: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    # Ensure app is binding to the correct port
+    port = int(os.environ.get("PORT", 5000))  # Use the Render-provided port or default to 5000
     app.run(host="0.0.0.0", port=port, debug=True)
