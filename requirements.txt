@@ -1,4 +1,4 @@
 Flask==2.2.2
-openai==1.24.1  # Update this line to the latest version
+openai==1.0.0  # Or latest version available
 flask-cors==5.0.1
 werkzeug==2.2.3
