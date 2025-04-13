@@ -1,8 +1,9 @@
 import os
 import time
 import logging
+import json
 import openai
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 
 # --- Setup logging ---
@@ -12,30 +13,15 @@ logging.basicConfig(level=logging.INFO)
 app = Flask(__name__)
 CORS(app)
 
-# --- Load API key and assistant ID ---
+# --- Config ---
 openai.api_key = os.getenv("OPENAI_API_KEY")
 ASSISTANT_ID = "asst_zaP9DAqsurHvabQuvRKh7VtX"
-THREAD_FILE = "thread_id.txt"
+SHARED_THREAD_ID = "thread_jpyWKedJMELyaODFUgzb6yqH"
 
 if not openai.api_key:
     raise ValueError("Missing OPENAI_API_KEY environment variable")
 
-# --- Load or create a shared thread ---
-def load_or_create_thread():
-    if os.path.exists(THREAD_FILE):
-        with open(THREAD_FILE, "r") as f:
-            thread_id = f.read().strip()
-            logging.info(f"Loaded thread ID: {thread_id}")
-            return thread_id
-    thread = openai.beta.threads.create()
-    with open(THREAD_FILE, "w") as f:
-        f.write(thread.id)
-    logging.info(f"Created new thread ID: {thread.id}")
-    return thread.id
-
-SHARED_THREAD_ID = load_or_create_thread()
-
-# --- Generate response from assistant ---
+# --- Generate full response (non-streaming) ---
 def generate_response(message_body: str) -> str:
     openai.beta.threads.messages.create(
         thread_id=SHARED_THREAD_ID,
@@ -48,7 +34,6 @@ def generate_response(message_body: str) -> str:
         assistant_id=ASSISTANT_ID
     )
 
-    # Wait for run to complete
     while True:
         run_status = openai.beta.threads.runs.retrieve(
             thread_id=SHARED_THREAD_ID,
@@ -60,14 +45,13 @@ def generate_response(message_body: str) -> str:
             raise Exception(f"Run failed with status: {run_status.status}")
         time.sleep(1)
 
-    # Fetch latest assistant message
     messages = openai.beta.threads.messages.list(thread_id=SHARED_THREAD_ID)
     return messages.data[0].content[0].text.value
 
 # --- Routes ---
 @app.route("/")
 def home():
-    return "✅ Factory Assistant API is live."
+    return "✅ Factory Assistant API (using fixed thread) is live."
 
 @app.route("/ask", methods=["POST"])
 def ask():
@@ -86,19 +70,42 @@ def ask():
         logging.error(f"Error generating response: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route("/reset", methods=["POST"])
-def reset_thread():
+@app.route("/stream-ask", methods=["POST"])
+def stream_ask():
     try:
-        thread = openai.beta.threads.create()
-        thread_id = thread.id
-        with open(THREAD_FILE, "w") as f:
-            f.write(thread_id)
-        global SHARED_THREAD_ID
-        SHARED_THREAD_ID = thread_id
-        logging.info(f"Thread reset to: {thread_id}")
-        return jsonify({"message": "Thread reset successfully", "thread_id": thread_id})
+        data = request.get_json()
+        message = data.get("message")
+
+        if not message:
+            return jsonify({"error": "Missing 'message' field"}), 400
+
+        openai.beta.threads.messages.create(
+            thread_id=SHARED_THREAD_ID,
+            role="user",
+            content=message
+        )
+
+        def generate():
+            stream = openai.beta.threads.runs.create(
+                thread_id=SHARED_THREAD_ID,
+                assistant_id=ASSISTANT_ID,
+                stream=True
+            )
+
+            for chunk in stream:
+                try:
+                    parts = chunk.data.get("step_details", {}).get("message_creation", {}).get("message", {}).get("content", [])
+                    for part in parts:
+                        if part.get("type") == "text":
+                            text = part["text"]["value"]
+                            yield f"data: {json.dumps({'text': text})}\n\n"
+                except Exception as e:
+                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+        return Response(generate(), content_type='text/event-stream')
+
     except Exception as e:
-        logging.error(f"Error resetting thread: {e}")
+        logging.error(f"Streaming error: {e}")
         return jsonify({"error": str(e)}), 500
 
 # --- Run app ---
