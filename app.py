@@ -26,7 +26,7 @@ def ask():
     try:
         data = request.get_json()
         message = data.get("message")
-        assistant_id = data.get("assistant_id")  # Get the assistant ID from the request data
+        assistant_id = data.get("assistant_id", "asst_zaP9DAqsurHvabQuvRKh7VtX")  # Default to your assistant ID if not provided
 
         if not message:
             return jsonify({"error": "No message provided"}), 400
@@ -41,6 +41,9 @@ def ask():
             max_tokens=150,
             user=assistant_id  # Pass the assistant ID as user context
         )
+
+        # Log the entire response for debugging
+        print("Full API Response:", response)
 
         # Get the response from the API
         answer = response['choices'][0]['message']['content'].strip()
