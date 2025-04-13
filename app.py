@@ -1,72 +1,33 @@
 import os
 import time
 import logging
-import json
+from flask import Flask, request, jsonify
 import openai
-from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 
-# --- Logging setup ---
-logging.basicConfig(level=logging.INFO)
+# Logging setup
+logging.basicConfig(level=logging.DEBUG)
 
-# --- Flask app ---
 app = Flask(__name__)
 CORS(app)
 
-# --- OpenAI Configuration ---
+# Load OpenAI credentials
 openai.api_key = os.getenv("OPENAI_API_KEY")
-ASSISTANT_ID = "asst_zaP9DAqsurHvabQuvRKh7VtX"
-THREAD_FILE = "thread_id.txt"
-
 if not openai.api_key:
     raise ValueError("Missing OPENAI_API_KEY environment variable")
 
-# --- Persistent thread management ---
-def load_or_create_thread():
-    if os.path.exists(THREAD_FILE):
-        with open(THREAD_FILE, "r") as f:
-            thread_id = f.read().strip()
-            logging.info(f"Loaded existing thread ID: {thread_id}")
-            return thread_id
-    thread = openai.beta.threads.create()
-    with open(THREAD_FILE, "w") as f:
-        f.write(thread.id)
-    logging.info(f"Created new thread ID: {thread.id}")
-    return thread.id
+ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
+if not ASSISTANT_ID:
+    raise ValueError("Missing OPENAI_ASSISTANT_ID environment variable")
 
-SHARED_THREAD_ID = load_or_create_thread()
+# Create a shared thread at app startup
+shared_thread = openai.beta.threads.create()
+SHARED_THREAD_ID = shared_thread.id
+logging.info(f"Using shared thread ID: {SHARED_THREAD_ID}")
 
-# --- Non-streaming assistant response ---
-def generate_response(message_body: str) -> str:
-    openai.beta.threads.messages.create(
-        thread_id=SHARED_THREAD_ID,
-        role="user",
-        content=message_body
-    )
-
-    run = openai.beta.threads.runs.create(
-        thread_id=SHARED_THREAD_ID,
-        assistant_id=ASSISTANT_ID
-    )
-
-    while True:
-        run_status = openai.beta.threads.runs.retrieve(
-            thread_id=SHARED_THREAD_ID,
-            run_id=run.id
-        )
-        if run_status.status == "completed":
-            break
-        elif run_status.status in ["failed", "cancelled", "expired"]:
-            raise Exception(f"Run failed with status: {run_status.status}")
-        time.sleep(1)
-
-    messages = openai.beta.threads.messages.list(thread_id=SHARED_THREAD_ID)
-    return messages.data[0].content[0].text.value
-
-# --- Routes ---
 @app.route("/")
 def home():
-    return "✅ Factory Assistant API is live."
+    return "Manufacturing Assistant API (shared thread) is live!"
 
 @app.route("/ask", methods=["POST"])
 def ask():
@@ -77,67 +38,41 @@ def ask():
         if not message:
             return jsonify({"error": "Missing 'message' field"}), 400
 
-        logging.info(f"User asked: {message}")
-        answer = generate_response(message)
-        return jsonify({"response": answer})
-
-    except Exception as e:
-        logging.error(f"Error generating response: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/stream-ask", methods=["POST"])
-def stream_ask():
-    try:
-        data = request.get_json()
-        message = data.get("message")
-
-        if not message:
-            return jsonify({"error": "Missing 'message' field"}), 400
-
+        # Step 1: Add message to shared thread
         openai.beta.threads.messages.create(
             thread_id=SHARED_THREAD_ID,
             role="user",
             content=message
         )
 
-        def generate():
-            stream = openai.beta.threads.runs.create(
+        # Step 2: Run assistant
+        run = openai.beta.threads.runs.create(
+            thread_id=SHARED_THREAD_ID,
+            assistant_id=ASSISTANT_ID
+        )
+
+        # Step 3: Wait for run completion
+        while True:
+            run_status = openai.beta.threads.runs.retrieve(
                 thread_id=SHARED_THREAD_ID,
-                assistant_id=ASSISTANT_ID,
-                stream=True
+                run_id=run.id
             )
+            if run_status.status == "completed":
+                break
+            elif run_status.status in ["failed", "cancelled", "expired"]:
+                raise Exception(f"Run {run_status.status}")
+            time.sleep(1)
 
-            for event in stream:
-                print("STREAM EVENT", event)  # optional debug log
-                if hasattr(event, "delta") and event.delta:
-                    parts = event.delta.get("content", [])
-                    for part in parts:
-                        if part.get("type") == "text":
-                            text = part["text"]["value"]
-                            yield f"data: {json.dumps({'text': text})}\n\n"
+        # Step 4: Get latest assistant message
+        messages = openai.beta.threads.messages.list(thread_id=SHARED_THREAD_ID)
+        latest = messages.data[0].content[0].text.value
 
-        return Response(generate(), content_type='text/event-stream')
+        return jsonify({"response": latest})
 
     except Exception as e:
-        logging.error(f"Streaming error: {e}")
+        logging.error(f"OpenAI Assistant API error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route("/reset", methods=["POST"])
-def reset_thread():
-    try:
-        thread = openai.beta.threads.create()
-        with open(THREAD_FILE, "w") as f:
-            f.write(thread.id)
-        global SHARED_THREAD_ID
-        SHARED_THREAD_ID = thread.id
-        logging.info(f"Thread reset to: {thread.id}")
-        return jsonify({"message": "Thread reset successfully", "thread_id": thread.id})
-    except Exception as e:
-        logging.error(f"Error resetting thread: {e}")
-        return jsonify({"error": str(e)}), 500
-
-# --- Run the app ---
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
-
