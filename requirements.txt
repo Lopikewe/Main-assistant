@@ -2,4 +2,4 @@ flask
 requests
 python-dotenv
 flask-cors
-openai
+openai>=1.0.0
