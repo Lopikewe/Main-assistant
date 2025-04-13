@@ -18,7 +18,8 @@ def ask():
     try:
         data = request.get_json()
         message = data.get("message")
-
+         # ...
+   
         if not message:
             return jsonify({"error": "No message provided"}), 400
 
