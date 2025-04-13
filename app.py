@@ -1,65 +1,62 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import requests
+import openai
 import os
-import time
 
 app = Flask(__name__)
 CORS(app)
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-ASSISTANT_ID = "asst_zaP9DAqsurHvabQuvRKh7VtX"
+openai.api_key = os.getenv("OPENAI_API_KEY")  # Make sure this is set in Render
 
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({"message": "API is running"}), 200
+assistant_id = "asst_zaP9DAqsurHvabQuvRKh7VtX"  # your actual Assistant ID
 
 @app.route("/ask", methods=["POST"])
 def ask():
-    user_message = request.json.get("message")
-    if not user_message:
-        return jsonify({"error": "Message is required"}), 400
+    try:
+        user_message = request.json.get("message")
+        if not user_message:
+            return jsonify({"error": "No message provided"}), 400
 
-    # Create thread
-    thread = requests.post("https://api.openai.com/v1/threads", headers={
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
-    }).json()
-    thread_id = thread["id"]
+        client = openai.OpenAI()
 
-    # Add message
-    requests.post(f"https://api.openai.com/v1/threads/{thread_id}/messages", headers={
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
-    }, json={"role": "user", "content": user_message})
+        # Create a new thread
+        thread = client.beta.threads.create()
+        thread_id = thread.id  # ✅ Fixed here
 
-    # Run assistant
-    run = requests.post(f"https://api.openai.com/v1/threads/{thread_id}/runs", headers={
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
-    }, json={"assistant_id": ASSISTANT_ID}).json()
+        # Add the user message to the thread
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=user_message
+        )
 
-    run_id = run["id"]
+        # Run the assistant
+        run = client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=assistant_id,
+        )
 
-    # Wait for response
-    while True:
-        run_check = requests.get(f"https://api.openai.com/v1/threads/{thread_id}/runs/{run_id}", headers={
-            "Authorization": f"Bearer {OPENAI_API_KEY}"
-        }).json()
-        if run_check["status"] == "completed":
-            break
-        time.sleep(1)
+        # Poll until it's done
+        while True:
+            run_status = client.beta.threads.runs.retrieve(
+                thread_id=thread_id,
+                run_id=run.id,
+            )
+            if run_status.status == "completed":
+                break
 
-    # Get assistant response
-    messages = requests.get(f"https://api.openai.com/v1/threads/{thread_id}/messages", headers={
-        "Authorization": f"Bearer {OPENAI_API_KEY}"
-    }).json()
+        # Retrieve the assistant's reply
+        messages = client.beta.threads.messages.list(thread_id=thread_id)
+        answer = messages.data[0].content[0].text.value
 
-    for msg in messages["data"]:
-        if msg["role"] == "assistant":
-            return jsonify({"response": msg["content"][0]["text"]["value"]})
+        return jsonify({"response": answer})
 
-    return jsonify({"response": "No assistant reply found."})
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({"error": str(e)}), 500
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+
+@app.route("/", methods=["GET"])
+def index():
+    return "<h1>Assistant is running</h1>"
+
