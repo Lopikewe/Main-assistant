@@ -6,7 +6,7 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-openai.api_key = os.getenv("OPENAI_API_KEY")  # Make sure this is set in Render
+openai.api_key = os.getenv("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")  # Make sure this is set in Render
 
 assistant_id = "asst_zaP9DAqsurHvabQuvRKh7VtX"  # your actual Assistant ID
 
