@@ -26,20 +26,15 @@ def ask():
     try:
         data = request.get_json()
         message = data.get("message")
-        assistant_id = data.get("assistant_id", "asst_zaP9DAqsurHvabQuvRKh7VtX")  # Default to your assistant ID if not provided
 
         if not message:
             return jsonify({"error": "No message provided"}), 400
-
-        if not assistant_id:
-            return jsonify({"error": "Assistant ID is missing"}), 400  # Handle missing assistant ID
 
         # Call OpenAI API for response using the chat-based completion method
         response = openai.ChatCompletion.create(
             model="gpt-4o-mini",  # Use your specific model
             messages=[{"role": "user", "content": message}],
-            max_tokens=150,
-            user=assistant_id  # Pass the assistant ID as user context
+            max_tokens=150
         )
 
         # Log the entire response for debugging
