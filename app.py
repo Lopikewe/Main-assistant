@@ -1,3 +1,4 @@
+import os
 from flask import Flask, request, jsonify
 import openai
 from flask_cors import CORS
@@ -36,4 +37,6 @@ def ask():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Ensure app is binding to the correct port
+    port = int(os.environ.get("PORT", 5000))  # Use the Render-provided port or default to 5000
+    app.run(host="0.0.0.0", port=port, debug=True)  # Listen on all interfaces
