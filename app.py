@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS  # Add this line
 import requests
 import os
 from dotenv import load_dotenv
@@ -7,6 +8,7 @@ import time
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)  # Add this line to allow CORS for all routes
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ASSISTANT_ID = "asst_zaP9DAqsurHvabQuvRKh7VtX"
@@ -62,6 +64,11 @@ def ask():
     )
 
     answer = assistant_message["content"][0]["text"]["value"]
+    return jsonify({"response": answer})
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)
+
     return jsonify({"response": answer})
 
 if __name__ == "__main__":
