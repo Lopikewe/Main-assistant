@@ -21,33 +21,41 @@
     <button onclick="sendMessage()">Send</button>
   </div>
 
-  <script>
-    async function sendMessage() {
-      const input = document.getElementById("userInput");
-      const messagesDiv = document.getElementById("messages");
-      const message = input.value.trim();
-      if (!message) return;
+<script>
+  async function sendMessage() {
+    const input = document.getElementById("userInput");
+    const messagesDiv = document.getElementById("messages");
+    const message = input.value.trim();
 
-      messagesDiv.innerHTML += `<div class="message user">You: ${message}</div>`;
-      input.value = "";
-
-      try {
-        const res = await fetch("https://main-assistant.onrender.com/ask", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message })
-        });
-
-        if (!res.ok) {
-          throw new Error('Failed to fetch response');
-        }
-
-        const data = await res.json();
-        messagesDiv.innerHTML += `<div class="message assistant">Assistant: ${data.response}</div>`;
-      } catch (error) {
-        messagesDiv.innerHTML += `<div class="message assistant">Error: ${error.message}</div>`;
-      }
+    if (!message) {
+      // If the input is empty, do not proceed
+      alert("Please enter a message!");
+      return;
     }
-  </script>
+
+    messagesDiv.innerHTML += `<div class="message user">You: ${message}</div>`;
+    input.value = "";
+
+    try {
+      const res = await fetch("https://main-assistant.onrender.com/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message })
+      });
+
+      if (!res.ok) {
+        throw new Error(`Error: ${res.status}`);
+      }
+
+      const data = await res.json();  // Only parse the response once
+      messagesDiv.innerHTML += `<div class="message assistant">Assistant: ${data.response}</div>`;
+    } catch (error) {
+      messagesDiv.innerHTML += `<div class="message assistant">Error: ${error.message}</div>`;
+    }
+  }
+</script>
+
+
+  
 </body>
 </html>
