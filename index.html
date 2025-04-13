@@ -33,23 +33,27 @@
         return;
       }
 
+      // Display user's message
       messagesDiv.innerHTML += `<div class="message user">You: ${message}</div>`;
-      input.value = "";
+      input.value = ""; // Clear the input field
 
       try {
         const res = await fetch("https://main-assistant.onrender.com/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message })
+          body: JSON.stringify({ message }) // Ensure we send the message properly
         });
 
         if (!res.ok) {
-          throw new Error(`Error: ${res.status}`);
+          // Enhanced error handling: Check if the response is not ok
+          const errorData = await res.json();
+          throw new Error(errorData.error || `Error: ${res.status}`);
         }
 
-        const data = await res.json();  // Only parse the response once
+        const data = await res.json();  // Parse the response JSON
         messagesDiv.innerHTML += `<div class="message assistant">Assistant: ${data.response}</div>`;
       } catch (error) {
+        // Display the error message if there's an issue
         messagesDiv.innerHTML += `<div class="message assistant">Error: ${error.message}</div>`;
       }
     }
