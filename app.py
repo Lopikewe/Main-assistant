@@ -36,32 +36,14 @@ def load_or_create_thread():
 
 SHARED_THREAD_ID = load_or_create_thread()
 
-# --- Non-streaming assistant response ---
-def generate_response(message_body: str) -> str:
-    openai.beta.threads.messages.create(
-        thread_id=SHARED_THREAD_ID,
-        role="user",
-        content=message_body
-    )
-
-    run = openai.beta.threads.runs.create(
-        thread_id=SHARED_THREAD_ID,
-        assistant_id=ASSISTANT_ID
-    )
-
-    while True:
-        run_status = openai.beta.threads.runs.retrieve(
-            thread_id=SHARED_THREAD_ID,
-            run_id=run.id
-        )
-        if run_status.status == "completed":
-            break
-        elif run_status.status in ["failed", "cancelled", "expired"]:
-            raise Exception(f"Run failed with status: {run_status.status}")
-        time.sleep(1)
-
-    messages = openai.beta.threads.messages.list(thread_id=SHARED_THREAD_ID)
-    return messages.data[0].content[0].text.value
+# --- Get file URL by ID ---
+def get_file_url(file_id):
+    try:
+        file_info = openai.files.retrieve(file_id)
+        return f"https://api.openai.com/v1/files/{file_id}/content"
+    except Exception as e:
+        logging.error(f"Error fetching file URL: {e}")
+        return None
 
 # --- Routes ---
 @app.route("/")
@@ -73,28 +55,25 @@ def ask():
     try:
         data = request.get_json()
         message = data.get("message")
-
         if not message:
             return jsonify({"error": "Missing 'message' field"}), 400
 
         logging.info(f"User asked: {message}")
         answer = generate_response(message)
         return jsonify({"response": answer})
-
     except Exception as e:
         logging.error(f"Error generating response: {e}")
         return jsonify({"error": str(e)}), 500
 
+# --- Streaming with fallback and image support ---
 @app.route("/stream-ask", methods=["POST"])
 def stream_ask():
     try:
         data = request.get_json()
         message = data.get("message")
-
         if not message:
             return jsonify({"error": "Missing 'message' field"}), 400
 
-        # Add user message to the thread
         openai.beta.threads.messages.create(
             thread_id=SHARED_THREAD_ID,
             role="user",
@@ -104,6 +83,7 @@ def stream_ask():
         def generate():
             fallback_used = True
             collected_text = ""
+            start_time = time.time()
 
             # Start run with streaming
             stream = openai.beta.threads.runs.create(
@@ -116,24 +96,33 @@ def stream_ask():
                 if hasattr(event, "delta") and event.delta:
                     parts = event.delta.get("content", [])
                     for part in parts:
-                        if part.get("type") == "text":
+                        if isinstance(part, dict) and part.get("type") == "text":
                             text = part["text"]["value"]
+                        elif hasattr(part, "type") and part.type == "text":
+                            text = part.text.value
+                        else:
+                            text = ""
+                        if text:
                             collected_text += text
                             fallback_used = False
                             yield f"data: {json.dumps({'text': text})}\n\n"
 
-            # If nothing was streamed, use fallback
-            if fallback_used:
-                logging.warning("⚠️ No streaming chunks received — using fallback.")
-                time.sleep(1)
+                if time.time() - start_time > 10 and fallback_used:
+                    logging.warning("⚠️ No streaming chunks received — using fallback.")
+                    break
+
+            # Fallback if nothing streamed
+            if fallback_used or not collected_text:
                 messages = openai.beta.threads.messages.list(thread_id=SHARED_THREAD_ID)
                 if messages.data:
-                    last_message = messages.data[0]
-                    chunks = last_message.content
-                    for chunk in chunks:
+                    last_msg = messages.data[0]
+                    for chunk in last_msg.content:
                         if chunk.type == "text":
-                            text = chunk.text.value
-                            yield f"data: {json.dumps({'text': text})}\n\n"
+                            yield f"data: {json.dumps({'text': chunk.text.value})}\n\n"
+                        elif chunk.type == "image_file":
+                            file_url = get_file_url(chunk.image_file.file_id)
+                            if file_url:
+                                yield f"data: {json.dumps({'image_url': file_url})}\n\n"
 
         return Response(generate(), content_type='text/event-stream')
 
@@ -155,7 +144,7 @@ def reset_thread():
         logging.error(f"Error resetting thread: {e}")
         return jsonify({"error": str(e)}), 500
 
-# --- Run the app ---
+# --- Run ---
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
