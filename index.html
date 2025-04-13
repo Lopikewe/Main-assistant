@@ -4,59 +4,142 @@
   <meta charset="UTF-8" />
   <title>Manufacturing Assistant</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f2f2f2; padding: 20px; }
-    #chat { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-    .message { margin: 10px 0; }
-    .user { font-weight: bold; color: #333; }
-    .assistant { color: #2c3e50; }
-    input, button { padding: 10px; font-size: 16px; margin-top: 10px; }
-    input { width: 80%; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      padding: 20px;
+    }
+    #chat {
+      max-width: 600px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      height: 80vh;
+      overflow-y: auto;
+    }
+    .message {
+      margin: 10px 0;
+    }
+    .user {
+      font-weight: bold;
+      color: #333;
+    }
+    .assistant {
+      color: #2c3e50;
+    }
+    #inputArea {
+      max-width: 600px;
+      margin: auto;
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    input {
+      flex-grow: 1;
+      padding: 10px;
+      font-size: 16px;
+    }
+    button {
+      padding: 10px;
+      font-size: 16px;
+    }
   </style>
 </head>
 <body>
+  <h2 style="text-align: center;">Ask About Manufacturing & SOPs</h2>
   <div id="chat">
-    <h2>Ask About Manufacturing & SOPs</h2>
     <div id="messages"></div>
-    <input type="text" id="userInput" placeholder="Type your question..." />
-    <button onclick="sendMessage()">Send</button>
   </div>
 
-  <script>
-    async function sendMessage() {
-      const input = document.getElementById("userInput");
-      const messagesDiv = document.getElementById("messages");
-      const message = input.value.trim();
+  <div id="inputArea">
+    <input type="text" id="userInput" placeholder="Type your question..." />
+    <button id="sendButton" onclick="sendMessage()">Send</button>
+  </div>
 
-      if (!message) {
-        // If the input is empty, do not proceed
-        alert("Please enter a message!");
-        return;
-      }
+<script>
+  async function sendMessage() {
+    const input = document.getElementById("userInput");
+    const sendButton = document.getElementById("sendButton");
+    const messagesDiv = document.getElementById("messages");
+    const message = input.value.trim();
 
-      // Display user's message
-      messagesDiv.innerHTML += `<div class="message user">You: ${message}</div>`;
-      input.value = ""; // Clear the input field
+    if (!message) return;
 
-      try {
-        const res = await fetch("https://main-assistant.onrender.com/ask", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message }) // Ensure we send the message properly
-        });
+    // Display user's message
+    messagesDiv.innerHTML += `<div class="message user">You: ${message}</div>`;
 
-        if (!res.ok) {
-          // Enhanced error handling: Check if the response is not ok
-          const errorData = await res.json();
-          throw new Error(errorData.error || `Error: ${res.status}`);
+    // Prepare assistant response
+    const id = "resp_" + Date.now();
+    const assistantEl = document.createElement("div");
+    assistantEl.className = "message assistant";
+    assistantEl.innerHTML = `Assistant: <span id="${id}"></span>`;
+    messagesDiv.appendChild(assistantEl);
+
+    input.value = "";
+    input.disabled = true;
+    sendButton.disabled = true;
+
+    scrollToBottom();
+
+    try {
+      const res = await fetch("https://main-assistant.onrender.com/stream-ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message })
+      });
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      const span = document.getElementById(id);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop(); // Keep the last partial line for next loop
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+
+          const jsonString = line.slice(6); // Remove "data: "
+          if (jsonString.trim() === "[DONE]") break;
+
+          try {
+            const parsed = JSON.parse(jsonString);
+            const text = parsed?.text;
+
+            if (text) {
+              span.textContent += text;
+              scrollToBottom();
+            }
+          } catch (e) {
+            console.warn("Failed to parse chunk:", jsonString, e);
+          }
         }
-
-        const data = await res.json();  // Parse the response JSON
-        messagesDiv.innerHTML += `<div class="message assistant">Assistant: ${data.response}</div>`;
-      } catch (error) {
-        // Display the error message if there's an issue
-        messagesDiv.innerHTML += `<div class="message assistant">Error: ${error.message}</div>`;
       }
+    } catch (err) {
+      messagesDiv.innerHTML += `<div class="message assistant">Error: ${err.message}</div>`;
+    } finally {
+      input.disabled = false;
+      sendButton.disabled = false;
+      scrollToBottom();
     }
-  </script>
+  }
+
+  function scrollToBottom() {
+    const chat = document.getElementById("chat");
+    chat.scrollTop = chat.scrollHeight;
+  }
+</script>
+
+
+  
+
 </body>
 </html>
