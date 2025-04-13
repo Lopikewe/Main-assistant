@@ -6,22 +6,37 @@ import openai
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 
-# --- Setup logging ---
+# --- Logging setup ---
 logging.basicConfig(level=logging.INFO)
 
 # --- Flask app ---
 app = Flask(__name__)
 CORS(app)
 
-# --- Config ---
+# --- OpenAI Configuration ---
 openai.api_key = os.getenv("OPENAI_API_KEY")
 ASSISTANT_ID = "asst_zaP9DAqsurHvabQuvRKh7VtX"
-SHARED_THREAD_ID = "thread_jpyWKedJMELyaODFUgzb6yqH"
+THREAD_FILE = "thread_id.txt"
 
 if not openai.api_key:
     raise ValueError("Missing OPENAI_API_KEY environment variable")
 
-# --- Generate full response (non-streaming) ---
+# --- Persistent thread management ---
+def load_or_create_thread():
+    if os.path.exists(THREAD_FILE):
+        with open(THREAD_FILE, "r") as f:
+            thread_id = f.read().strip()
+            logging.info(f"Loaded existing thread ID: {thread_id}")
+            return thread_id
+    thread = openai.beta.threads.create()
+    with open(THREAD_FILE, "w") as f:
+        f.write(thread.id)
+    logging.info(f"Created new thread ID: {thread.id}")
+    return thread.id
+
+SHARED_THREAD_ID = load_or_create_thread()
+
+# --- Non-streaming assistant response ---
 def generate_response(message_body: str) -> str:
     openai.beta.threads.messages.create(
         thread_id=SHARED_THREAD_ID,
@@ -51,7 +66,7 @@ def generate_response(message_body: str) -> str:
 # --- Routes ---
 @app.route("/")
 def home():
-    return "✅ Factory Assistant API (using fixed thread) is live."
+    return "✅ Factory Assistant API is live."
 
 @app.route("/ask", methods=["POST"])
 def ask():
@@ -108,7 +123,21 @@ def stream_ask():
         logging.error(f"Streaming error: {e}")
         return jsonify({"error": str(e)}), 500
 
-# --- Run app ---
+@app.route("/reset", methods=["POST"])
+def reset_thread():
+    try:
+        thread = openai.beta.threads.create()
+        with open(THREAD_FILE, "w") as f:
+            f.write(thread.id)
+        global SHARED_THREAD_ID
+        SHARED_THREAD_ID = thread.id
+        logging.info(f"Thread reset to: {thread.id}")
+        return jsonify({"message": "Thread reset successfully", "thread_id": thread.id})
+    except Exception as e:
+        logging.error(f"Error resetting thread: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# --- Run the app ---
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
