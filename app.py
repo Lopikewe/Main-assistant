@@ -18,19 +18,19 @@ def ask():
     try:
         data = request.get_json()
         message = data.get("message")
-         # ...
-   
+
         if not message:
             return jsonify({"error": "No message provided"}), 400
 
-        # Call OpenAI API for response
-        response = openai.Completion.create(
-            model="text-davinci-003",  # You can use your desired model
-            prompt=message,
+        # Call OpenAI API for response using the new chat-based completion method
+        response = openai.chat.Completion.create(
+            model="gpt-3.5-turbo",  # Use the new GPT model
+            messages=[{"role": "user", "content": message}],
             max_tokens=150
         )
 
-        answer = response.choices[0].text.strip()
+        # Get the response from the API
+        answer = response['choices'][0]['message']['content'].strip()
         return jsonify({"response": answer})
 
     except Exception as e:
