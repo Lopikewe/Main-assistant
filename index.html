@@ -31,14 +31,22 @@
       messagesDiv.innerHTML += `<div class="message user">You: ${message}</div>`;
       input.value = "";
 
-      const res = await fetch("https://your-render-url.onrender.com/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message })
-      });
+      try {
+        const res = await fetch("https://main-assistant.onrender.com/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message })
+        });
 
-      const data = await res.json();
-      messagesDiv.innerHTML += `<div class="message assistant">Assistant: ${data.response}</div>`;
+        if (!res.ok) {
+          throw new Error('Failed to fetch response');
+        }
+
+        const data = await res.json();
+        messagesDiv.innerHTML += `<div class="message assistant">Assistant: ${data.response}</div>`;
+      } catch (error) {
+        messagesDiv.innerHTML += `<div class="message assistant">Error: ${error.message}</div>`;
+      }
     }
   </script>
 </body>
