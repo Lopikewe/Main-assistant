@@ -45,9 +45,27 @@
       padding: 10px;
       font-size: 16px;
     }
+    #loginBox {
+      text-align: center;
+      max-width: 400px;
+      margin: 100px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
   </style>
 </head>
 <body>
+
+<div id="loginBox">
+  <h3>🔐 Enter Password to Access Chat</h3>
+  <input type="password" id="passwordInput" placeholder="Enter password" />
+  <button onclick="checkPassword()">Enter</button>
+  <p id="error" style="color:red;"></p>
+</div>
+
+<div id="chatUI" style="display:none">
   <h2 style="text-align: center;">Ask About Manufacturing & SOPs</h2>
   <div id="chat">
     <div id="messages"></div>
@@ -57,8 +75,21 @@
     <input type="text" id="userInput" placeholder="Type your question..." />
     <button id="sendButton" onclick="sendMessage()">Send</button>
   </div>
+</div>
 
 <script>
+  const PASSWORD = "WER566896";
+
+  function checkPassword() {
+    const entered = document.getElementById("passwordInput").value;
+    if (entered === PASSWORD) {
+      document.getElementById("loginBox").style.display = "none";
+      document.getElementById("chatUI").style.display = "block";
+    } else {
+      document.getElementById("error").textContent = "Incorrect password.";
+    }
+  }
+
   async function sendMessage() {
     const input = document.getElementById("userInput");
     const sendButton = document.getElementById("sendButton");
@@ -67,10 +98,7 @@
 
     if (!message) return;
 
-    // Display user's message
     messagesDiv.innerHTML += `<div class="message user">You: ${message}</div>`;
-
-    // Prepare assistant response
     const id = "resp_" + Date.now();
     const assistantEl = document.createElement("div");
     assistantEl.className = "message assistant";
@@ -100,31 +128,31 @@
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
 
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop(); // Keep the last partial line for next loop
+        for (const part of parts) {
+          if (part.startsWith("data: ")) {
+            const jsonString = part.slice(6);
+            if (jsonString.trim() === "[DONE]") break;
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-
-          const jsonString = line.slice(6); // Remove "data: "
-          if (jsonString.trim() === "[DONE]") break;
-
-          try {
-            const parsed = JSON.parse(jsonString);
-            const text = parsed?.text;
-
-            if (text) {
-              span.textContent += text;
-              scrollToBottom();
+            try {
+              const parsed = JSON.parse(jsonString);
+              if (parsed.text) {
+                span.textContent += parsed.text;
+                scrollToBottom();
+              } else if (parsed.image_url) {
+                span.innerHTML += `<br><img src="${parsed.image_url}" alt="Generated Image" style="max-width:100%; border:1px solid #ccc; margin-top:10px;" />`;
+              }
+            } catch (err) {
+              console.warn("JSON parse error:", err);
             }
-          } catch (e) {
-            console.warn("Failed to parse chunk:", jsonString, e);
           }
         }
+
+        buffer = parts[parts.length - 1];
       }
-    } catch (err) {
-      messagesDiv.innerHTML += `<div class="message assistant">Error: ${err.message}</div>`;
+    } catch (error) {
+      messagesDiv.innerHTML += `<div class="message assistant">Error: ${error.message}</div>`;
     } finally {
       input.disabled = false;
       sendButton.disabled = false;
@@ -138,8 +166,6 @@
   }
 </script>
 
-
-  
-
 </body>
 </html>
+
