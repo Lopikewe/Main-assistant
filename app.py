@@ -107,15 +107,14 @@ def stream_ask():
                 stream=True
             )
 
-            for chunk in stream:
-                try:
-                    parts = chunk.data.get("step_details", {}).get("message_creation", {}).get("message", {}).get("content", [])
+            for event in stream:
+                print("STREAM EVENT", event)  # optional debug log
+                if hasattr(event, "delta") and event.delta:
+                    parts = event.delta.get("content", [])
                     for part in parts:
                         if part.get("type") == "text":
                             text = part["text"]["value"]
                             yield f"data: {json.dumps({'text': text})}\n\n"
-                except Exception as e:
-                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
         return Response(generate(), content_type='text/event-stream')
 
@@ -141,3 +140,4 @@ def reset_thread():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
