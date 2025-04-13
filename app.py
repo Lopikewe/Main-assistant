@@ -1,65 +1,44 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 import openai
-import os
+from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Enable Cross-Origin Resource Sharing
 
-openai.api_key = os.getenv("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")  # Make sure this is set in Render
+# Your OpenAI API key (replace this with your actual API key)
+openai.api_key = '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'
 
-assistant_id = "asst_zaP9DAqsurHvabQuvRKh7VtX"  # your actual Assistant ID
+@app.route('/')
+def home():
+    return 'Flask app is running'
 
-@app.route("/ask", methods=["POST"])
+@app.route('/ask', methods=["POST"])
 def ask():
     try:
-        user_message = request.json.get("message")
+        # Extract the message from the incoming JSON request
+        user_message = request.json.get('message')
+        
+        # Check if the message is provided
         if not user_message:
-            return jsonify({"error": "No message provided"}), 400
+            return jsonify({"error": "Message not provided"}), 400
 
-        client = openai.OpenAI()
-
-        # Create a new thread
-        thread = client.beta.threads.create()
-        thread_id = thread.id  # ✅ Fixed here
-
-        # Add the user message to the thread
-        client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=user_message
+        # Request OpenAI API to generate an answer
+        response = openai.Completion.create(
+            engine="text-davinci-003",  # Use the desired model
+            prompt=user_message,
+            max_tokens=150
         )
 
-        # Run the assistant
-        run = client.beta.threads.runs.create(
-            thread_id=thread_id,
-            assistant_id=assistant_id,
-        )
-
-        # Poll until it's done
-        while True:
-            run_status = client.beta.threads.runs.retrieve(
-                thread_id=thread_id,
-                run_id=run.id,
-            )
-            if run_status.status == "completed":
-                break
-
-        # Retrieve the assistant's reply
-        messages = client.beta.threads.messages.list(thread_id=thread_id)
-        answer = messages.data[0].content[0].text.value
+        # Extract the answer from the response
+        answer = response.choices[0].text.strip()
 
         return jsonify({"response": answer})
 
     except Exception as e:
-        print("Error:", e)
-        return jsonify({"error": str(e)}), 500
+        # Log the full error message to the console
+        print(f"Error occurred: {e}")
+        return jsonify({"error": "Something went wrong"}), 500
 
-
-@app.route("/", methods=["GET"])
-def index():
-    return "<h1>Assistant is running</h1>"
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+if __name__ == '__main__':
+    app.run(debug=True)
 
