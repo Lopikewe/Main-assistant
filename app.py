@@ -36,7 +36,7 @@ def load_or_create_thread():
 
 SHARED_THREAD_ID = load_or_create_thread()
 
-# --- Get file URL by ID ---
+# --- Get file URL by ID (for images) ---
 def get_file_url(file_id):
     try:
         file_info = openai.files.retrieve(file_id)
@@ -45,11 +45,12 @@ def get_file_url(file_id):
         logging.error(f"Error fetching file URL: {e}")
         return None
 
-# --- Routes ---
+# --- Default route ---
 @app.route("/")
 def home():
     return "✅ Factory Assistant API is live."
 
+# --- Standard assistant response (non-stream) ---
 @app.route("/ask", methods=["POST"])
 def ask():
     try:
@@ -59,13 +60,37 @@ def ask():
             return jsonify({"error": "Missing 'message' field"}), 400
 
         logging.info(f"User asked: {message}")
-        answer = generate_response(message)
-        return jsonify({"response": answer})
+
+        openai.beta.threads.messages.create(
+            thread_id=SHARED_THREAD_ID,
+            role="user",
+            content=message
+        )
+
+        run = openai.beta.threads.runs.create(
+            thread_id=SHARED_THREAD_ID,
+            assistant_id=ASSISTANT_ID
+        )
+
+        while True:
+            status = openai.beta.threads.runs.retrieve(
+                thread_id=SHARED_THREAD_ID,
+                run_id=run.id
+            )
+            if status.status == "completed":
+                break
+            elif status.status in ["failed", "cancelled"]:
+                raise Exception(f"Run failed with status: {status.status}")
+            time.sleep(1)
+
+        messages = openai.beta.threads.messages.list(thread_id=SHARED_THREAD_ID)
+        return jsonify({"response": messages.data[0].content[0].text.value})
+
     except Exception as e:
-        logging.error(f"Error generating response: {e}")
+        logging.error(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
 
-# --- Streaming with fallback and image support ---
+# --- Streaming assistant response ---
 @app.route("/stream-ask", methods=["POST"])
 def stream_ask():
     try:
@@ -85,7 +110,6 @@ def stream_ask():
             collected_text = ""
             start_time = time.time()
 
-            # Start run with streaming
             stream = openai.beta.threads.runs.create(
                 thread_id=SHARED_THREAD_ID,
                 assistant_id=ASSISTANT_ID,
@@ -96,22 +120,20 @@ def stream_ask():
                 if hasattr(event, "delta") and event.delta:
                     parts = event.delta.get("content", [])
                     for part in parts:
+                        text = ""
                         if isinstance(part, dict) and part.get("type") == "text":
                             text = part["text"]["value"]
                         elif hasattr(part, "type") and part.type == "text":
                             text = part.text.value
-                        else:
-                            text = ""
                         if text:
                             collected_text += text
                             fallback_used = False
                             yield f"data: {json.dumps({'text': text})}\n\n"
 
-                if time.time() - start_time > 10 and fallback_used:
+                if time.time() - start_time > 15 and fallback_used:
                     logging.warning("⚠️ No streaming chunks received — using fallback.")
                     break
 
-            # Fallback if nothing streamed
             if fallback_used or not collected_text:
                 messages = openai.beta.threads.messages.list(thread_id=SHARED_THREAD_ID)
                 if messages.data:
@@ -130,6 +152,29 @@ def stream_ask():
         logging.error(f"Streaming error: {e}")
         return jsonify({"error": str(e)}), 500
 
+# --- Text-to-speech using OpenAI TTS ---
+@app.route("/speak", methods=["POST"])
+def speak():
+    try:
+        data = request.get_json()
+        text = data.get("text")
+        if not text:
+            return jsonify({"error": "Missing 'text' field"}), 400
+
+        response = openai.audio.speech.create(
+            model="tts-1",
+            voice="nova",  # or shimmer, echo
+            input=text
+        )
+
+        audio_bytes = response.read()
+        return Response(audio_bytes, mimetype="audio/mpeg")
+
+    except Exception as e:
+        logging.error(f"TTS error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# --- Reset thread for testing ---
 @app.route("/reset", methods=["POST"])
 def reset_thread():
     try:
@@ -144,7 +189,7 @@ def reset_thread():
         logging.error(f"Error resetting thread: {e}")
         return jsonify({"error": str(e)}), 500
 
-# --- Run ---
+# --- Run the app ---
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
