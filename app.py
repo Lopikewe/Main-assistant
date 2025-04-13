@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS  # Add this line
+from flask_cors import CORS
 import requests
 import os
 from dotenv import load_dotenv
@@ -8,13 +8,25 @@ import time
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})  # Fix CORS issue
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ASSISTANT_ID = "asst_zaP9DAqsurHvabQuvRKh7VtX"
 
-@app.route("/ask", methods=["POST"])
+# Add this route to handle requests to "/"
+@app.route("/", methods=["GET", "OPTIONS"])
+def home():
+    if request.method == "OPTIONS":
+        return jsonify({"message": "CORS preflight successful"}), 200
+    return jsonify({"message": "Welcome to the AI assistant"}), 200
+
+@app.route("/ask", methods=["POST", "OPTIONS"])
 def ask():
+    if request.method == "OPTIONS":
+        # This handles the preflight request, return OK
+        return jsonify({"message": "CORS preflight successful"}), 200
+
+    # Normal POST request handling
     data = request.json
     user_message = data.get("message")
 
@@ -68,4 +80,3 @@ def ask():
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
-
