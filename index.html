@@ -2,49 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Manufacturing Assistant</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       background: #f2f2f2;
-      padding: 20px;
-    }
-    #chat {
-      max-width: 600px;
-      margin: auto;
-      background: white;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      height: 80vh;
-      overflow-y: auto;
-    }
-    .message {
-      margin: 10px 0;
-    }
-    .user {
-      font-weight: bold;
-      color: #333;
-    }
-    .assistant {
-      color: #2c3e50;
-    }
-    #inputArea {
-      max-width: 600px;
-      margin: auto;
-      display: flex;
-      gap: 10px;
-      margin-top: 10px;
-    }
-    input {
-      flex-grow: 1;
+      margin: 0;
       padding: 10px;
-      font-size: 16px;
     }
-    button {
-      padding: 10px;
-      font-size: 16px;
-    }
+
     #loginBox {
       text-align: center;
       max-width: 400px;
@@ -53,6 +20,56 @@
       padding: 20px;
       border-radius: 10px;
       box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
+
+    #chat {
+      max-width: 100%;
+      margin: auto;
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      height: 70vh;
+      overflow-y: auto;
+    }
+
+    .message {
+      margin: 10px 0;
+    }
+
+    .user {
+      font-weight: bold;
+      color: #333;
+    }
+
+    .assistant {
+      color: #2c3e50;
+    }
+
+    #inputArea {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    #userInput, #sendButton {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    #sendButton {
+      background-color: #007BFF;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #sendButton:hover {
+      background-color: #0056b3;
     }
   </style>
 </head>
@@ -170,6 +187,7 @@
 
 </body>
 </html>
+
 
 <!-- updated -->
 
